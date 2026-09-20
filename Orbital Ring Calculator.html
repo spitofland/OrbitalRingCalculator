@@ -5,14 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Orbital Ring Calculator</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #1e1e1e; color: #f0f0f0; margin: 0; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; }
+        body { font-family: Arial, sans-serif; background-color: #1e1e1e; color: #d0d0d0; margin: 0; padding: 20px; }
+        .container { display: flex; flex-wrap: wrap; gap: 20px; }
         .panel { background: #2d2d2d; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); flex: 1 1 400px; }
         .panel div { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-        h1, h2 { margin-top: 0; color: #4da6ff; font-size: 1.4em; }
-        label { flex-grow: 1; display: block; margin-top: 0px; font-size: 0.9em; color: #aaa; }
-        input, select { width: 50%; padding: 8px; margin-top: 4px; box-sizing: border-box; background: #1e1e1e; color: #fff; border: 1px solid #555; border-radius: 4px; }
+        h1 { font-size: 1.6em; }
+        h2 { font-size: 1.4em; }
+        h1, h2 { color: #4da6ff; text-align: center; }
+        h1, .panel h2 { margin-top: 0; }
+        label { flex-grow: 1; display: block; margin-top: 0px; font-size: 0.9em; }
+        input, select { width: 50%; padding: 8px; margin-top: 4px; box-sizing: border-box; background: #1e1e1e; color: #d0d0d0; border: 1px solid #555; border-radius: 4px; }
         button { width: 100%; padding: 12px; margin-top: 20px; background: #4da6ff; color: #000; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; font-weight: bold; }
         button:hover { background: #3388dd; }
+        a:link { color: #4da6ff; }
+        a:visited { color: #a5a; }
         .output-row { display: flex; justify-content: space-between; margin-top: 10px; padding-bottom: 5px; border-bottom: 1px solid #444; font-size: 0.95em; }
         .output-val { font-weight: bold; color: #4da6ff; }
         .output-val select { width: auto; }
@@ -21,93 +27,104 @@
     </style>
 </head>
 <body>
+<h1>Orbital Ring Power Transfer Calculator</h1>
 
-<div class="panel">
-    <h2>System Inputs</h2>
-    <div>
-        <label>Planet Preset:</label>
-        <select id="presetPlanet" onchange="loadPreset()">
-            <option value="custom">Custom</option>
-            <option value="earth" selected>Earth</option>
-            <option value="moon">Moon</option>
-            <option value="mars">Mars</option>
-            <option value="venus">Venus</option>
-            <option value="jupiter">Jupiter</option>
-        </select>
+<p>An orbital ring uses objects moving faster than orbital speed ("core elements") to push against and support the weight of stations moving slower than orbital speed (usually stationary over one spot). By using excess solar power to accelerate the core elements, power can be transfered to the night side of the planet, where stations slow the core elements down to extract the power as electrical energy.</p>
+
+<p>More detailed explanations can be found below the calculator. Note that this calculator assumes two cores with elements travelling in opposite directions. Using two cores allows us to balance forces and reduce gyroscopic effects in the orbital ring as a whole.</p>
+
+<p>All information provided here is for educational and entertainment purposes. Do not use for professional engineering of any sort. I can not promise that all information herein is free from error. Updates may be made at any time without notice.</p>
+
+<div class="container">
+    <div class="panel">
+        <h2>System Inputs</h2>
+        <div>
+            <label>Planet Preset:</label>
+            <select id="presetPlanet" onchange="loadPreset()">
+                <option value="custom">Custom</option>
+                <option value="earth" selected>Earth</option>
+                <option value="moon">Moon</option>
+                <option value="mars">Mars</option>
+                <option value="venus">Venus</option>
+                <option value="jupiter">Jupiter</option>
+            </select>
+        </div>
+
+        <div>
+        <label>Planet Mass (kg)</label>
+        <input type="number" id="pMass" value="5.972e24">
+        </div>
+
+        <div>
+        <label>Planet Radius (km)</label>
+        <input type="number" id="pRadius" value="6371">
+        </div>
+
+        <div>
+        <label>Atmosphere Thickness (km)</label>
+        <input type="number" id="pAtmo" value="100">
+        </div>
+
+        <hr />
+
+        <div>
+        <label>Number of Stations</label>
+        <input type="number" id="nStations" value="12">
+        </div>
+
+        <div>
+        <label>Station Altitude (km)</label>
+        <input type="number" id="sAltitude" value="400">
+        </div>
+
+        <div>
+        <label>Mass per Station (kg)</label>
+        <input type="number" id="mStation" value="5000000">
+        </div>
+
+        <div>
+        <label>Mass per Core Element (kg)</label>
+        <input type="number" id="mCore" value="10">
+        </div>
+
+        <div>
+        <label>Number of Elements (per Core)</label>
+        <input type="number" id="nCoreElements" value="1000000">
+        </div>
+
+        <div>
+        <label>Night Station Power Req (Watts)</label>
+        <input type="number" id="pNight" value="1000000000">
+        </div>
+
+        <div>
+        <label>Conversion Efficiency (%)</label>
+        <input type="number" id="eff" value="85">
+        </div>
+
+        <button onclick="calculate()">Calculate & Draw</button>
     </div>
 
-    <div>
-    <label>Planet Mass (kg)</label>
-    <input type="number" id="pMass" value="5.972e24">
+    <div class="panel">
+        <h2>Calculated Outputs</h2>
+        <div id="errorMsg" class="error"></div>
+        <div class="output-row"><span>Element Passage Rate (per sec per core):</span> <span id="outFp" class="output-val">-</span></div>
+        <div class="output-row"><span>Distance Between Stations (km):</span> <span id="outStatDist" class="output-val">-</span></div>
+        <div class="output-row"><span>Distance Between Elements (km):</span> <span class="output-val"><span id="outMinDist" >-</span> - <span id="outMaxDist">-</span></span></div>
+
+        <div class="output-row"><span>Core Velocity:</span> <span class="output-val"><span id="outMinV">-</span> - <span id="outMaxV">-</span>
+        <select id="vUnit" onchange="updateVelocityDisplay()">
+            <option value="kms" selected>km/s</option>
+            <option value="ms">m/s</option>
+            <option value="kmh">km/h</option>
+        </select></span></div>
+        
+        <div class="output-row"><span>Sunny Station Power Req (Watts):</span> <span id="outPowerSun" class="output-val">-</span></div>
+        <div class="output-row"><span>Max Tether Tension (Newtons):</span> <span id="outTension" class="output-val">-</span></div>
+        <div class="output-row"><span>Lowest Core Altitude (Periapsis) (km):</span> <span id="outPeriapsis" class="output-val">-</span></div>
+
+        <canvas id="ringCanvas" width="400" height="400"></canvas>
     </div>
-
-    <div>
-    <label>Planet Radius (km)</label>
-    <input type="number" id="pRadius" value="6371">
-    </div>
-
-    <div>
-    <label>Atmosphere Thickness (km)</label>
-    <input type="number" id="pAtmo" value="100">
-    </div>
-
-    <div>
-    <label>Number of Stations</label>
-    <input type="number" id="nStations" value="12">
-    </div>
-
-    <div>
-    <label>Station Altitude (km)</label>
-    <input type="number" id="sAltitude" value="400">
-    </div>
-
-    <div>
-    <label>Mass per Station (kg)</label>
-    <input type="number" id="mStation" value="5000000">
-    </div>
-
-    <div>
-    <label>Mass per Core Element (kg)</label>
-    <input type="number" id="mCore" value="10">
-    </div>
-
-    <div>
-    <label>Number of Elements (per Core)</label>
-    <input type="number" id="nCoreElements" value="1000000">
-    </div>
-
-    <div>
-    <label>Night Station Power Req (Watts)</label>
-    <input type="number" id="pNight" value="1000000000">
-    </div>
-
-    <div>
-    <label>Conversion Efficiency (%)</label>
-    <input type="number" id="eff" value="85">
-    </div>
-
-    <button onclick="calculate()">Calculate & Draw</button>
-</div>
-
-<div class="panel">
-    <h2>Calculated Outputs</h2>
-    <div id="errorMsg" class="error"></div>
-    <div class="output-row"><span>Element Passage Rate (per sec per core):</span> <span id="outFp" class="output-val">-</span></div>
-    <div class="output-row"><span>Distance Between Stations (km):</span> <span id="outStatDist" class="output-val">-</span></div>
-    <div class="output-row"><span>Distance Between Elements (km):</span> <span class="output-val"><span id="outMinDist" >-</span> - <span id="outMaxDist">-</span></span></div>
-
-    <div class="output-row"><span>Core Velocity:</span> <span class="output-val"><span id="outMinV">-</span> - <span id="outMaxV">-</span>
-    <select id="vUnit" onchange="updateVelocityDisplay()">
-        <option value="kms" selected>km/s</option>
-        <option value="ms">m/s</option>
-        <option value="kmh">km/h</option>
-    </select></span></div>
-    
-    <div class="output-row"><span>Sunny Station Power Req (Watts):</span> <span id="outPowerSun" class="output-val">-</span></div>
-    <div class="output-row"><span>Max Tether Tension (Newtons):</span> <span id="outTension" class="output-val">-</span></div>
-    <div class="output-row"><span>Lowest Core Altitude (Periapsis) (km):</span> <span id="outPeriapsis" class="output-val">-</span></div>
-
-    <canvas id="ringCanvas" width="400" height="400"></canvas>
 </div>
 
 <script>
@@ -350,6 +367,44 @@
     // Initialize with default on load
     window.onload = calculate;
 </script>
+
+<h2>What Is An Orbital Ring?</h2>
+
+<p>An orbital ring is a proposed structure that uses "core elements" moving faster than orbital speed to push out against "stations". The stations push down on the core elements to prevent those elements from flying away from the planet. The push up from the core elements allows the stations to move slower than orbital speed without falling down. The typical proposal has the stations remain stationary over one spot on the ground.</p>
+
+<p>The key idea is to use centrifugal force from the core elements to counteract the gravity pulling down on the stations. Since centrifugal really only exists in the spinning frame of reference, we could also explain it as the stations providing centripetal force to the core elements that balances the force of gravity acting on the station.</p>
+
+<p>If you've ever seen motorcyclists perform the "Globe of Death", then you've seen the basic principles in motion. The motorcyclists can ride inside the large ball in any direction without falling because they are moving fast enough that the centrifugal force they experience is larger than the force of gravity pulling them down.</p>
+
+<p>Orbital rings replace the motorcyclists with maglev trains and the giant ball with an enormous ring of stations held in place by the balance of forces pushing out and pulling in.</p>
+
+<p>Orbital rings are often proposed as a "bridge" to space, similar to space elevators. By placing a stationary ring just above the atmosphere, the tethers from the ground can be much shorter than a traditional space elevator requires. That means the required tensile strength for the tethers can be supplied by materials we are currently capable of mass producing.</p>
+
+<ul>
+    <li>Wikipedia - <a href="https://en.wikipedia.org/wiki/Orbital_ring">Orbital ring</a></li>
+    <li>Space Voyage Ventures Blog - <a href="https://spacevoyageventures.com/orbital-rings/">Orbital Rings: Megastructures, Space Elevators, and the Future Potential</a></li>
+</ul>
+
+<h2>Using Two Cores For Balance</h2>
+
+<p>An orbital ring has a spinning core, so it acts like a gyroscope. If we put an orbital ring anywhere but the equator, the tethers to the ground will need to pull hard on the stations to overcome the gyroscopic effects. For a demonstration and explanation of the strange behavior of gyroscopes, see this video: <a href="https://www.youtube.com/watch?v=XwBZx1cXEdM">Why Do Spinning Things Do This? - Smarter Every Day 312</a> (20:13).</p>
+
+<p>We can reduce this effect by using two cores (two maglev trains) travelling in oposite directions. The angular momentum of the two cores will cancel out and reduce the tension needed on the tethers to keep the orbital ring in place above the rotating planet.</p>
+
+<ul>
+    <li>YouTube - <a href="https://www.youtube.com/watch?v=bzbVwiIeM0M">Double gyroscope</a> (1:07) (loud equipment noise)</li>
+    <li>YouTube - <a href="https://www.youtube.com/watch?v=vGun5athdfg">Doublegyroscope-Precession-1080p.mov</a> (3:30) (no spoken words, just a piano soundtrack)</li>
+</ul>
+
+<p>For the proposed method of transmitting power by accelerating and decelerating the core elements, the two cores also allow each station to speed up or slow down the cores without pushing the station sideways along the ring. The energy given to (or taken from) each core element is the same for both cores. That means the station experiences some internal compression or tension, but remains stationary.</p>
+
+<h2>Using Momentum To Transmit Power</h2>
+
+<p></p>
+
+<h2>Downsides</h2>
+
+<p></p>
 
 </body>
 </html>
