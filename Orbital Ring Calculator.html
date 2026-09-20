@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbital Ring Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #1e1e1e; color: #f0f0f0; margin: 0; padding: 20px; display: flex; flex-wrap: wrap; gap: 20px; }
+        .panel { background: #2d2d2d; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); flex: 1 1 400px; }
+        .panel div { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        h1, h2 { margin-top: 0; color: #4da6ff; font-size: 1.4em; }
+        label { flex-grow: 1; display: block; margin-top: 0px; font-size: 0.9em; color: #aaa; }
+        input, select { width: 50%; padding: 8px; margin-top: 4px; box-sizing: border-box; background: #1e1e1e; color: #fff; border: 1px solid #555; border-radius: 4px; }
+        button { width: 100%; padding: 12px; margin-top: 20px; background: #4da6ff; color: #000; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; font-weight: bold; }
+        button:hover { background: #3388dd; }
+        .output-row { display: flex; justify-content: space-between; margin-top: 10px; padding-bottom: 5px; border-bottom: 1px solid #444; font-size: 0.95em; }
+        .output-val { font-weight: bold; color: #4da6ff; }
+        .output-val select { width: auto; }
+        .error { color: #ff6666; font-weight: bold; margin-top: 10px; display: none; background: #440000; padding: 10px; border-radius: 4px; }
+        canvas { background: #000; border-radius: 50%; box-shadow: 0 0 15px rgba(255,255,255,0.1); display: block; margin: 20px auto; }
+    </style>
+</head>
+<body>
+
+<div class="panel">
+    <h2>System Inputs</h2>
+    <div>
+        <label>Planet Preset:</label>
+        <select id="presetPlanet" onchange="loadPreset()">
+            <option value="custom">Custom</option>
+            <option value="earth" selected>Earth</option>
+            <option value="moon">Moon</option>
+            <option value="mars">Mars</option>
+            <option value="venus">Venus</option>
+            <option value="jupiter">Jupiter</option>
+        </select>
+    </div>
+
+    <div>
+    <label>Planet Mass (kg)</label>
+    <input type="number" id="pMass" value="5.972e24">
+    </div>
+
+    <div>
+    <label>Planet Radius (km)</label>
+    <input type="number" id="pRadius" value="6371">
+    </div>
+
+    <div>
+    <label>Atmosphere Thickness (km)</label>
+    <input type="number" id="pAtmo" value="100">
+    </div>
+
+    <div>
+    <label>Number of Stations</label>
+    <input type="number" id="nStations" value="12">
+    </div>
+
+    <div>
+    <label>Station Altitude (km)</label>
+    <input type="number" id="sAltitude" value="400">
+    </div>
+
+    <div>
+    <label>Mass per Station (kg)</label>
+    <input type="number" id="mStation" value="5000000">
+    </div>
+
+    <div>
+    <label>Mass per Core Element (kg)</label>
+    <input type="number" id="mCore" value="10">
+    </div>
+
+    <div>
+    <label>Number of Elements (per Core)</label>
+    <input type="number" id="nCoreElements" value="1000000">
+    </div>
+
+    <div>
+    <label>Night Station Power Req (Watts)</label>
+    <input type="number" id="pNight" value="1000000000">
+    </div>
+
+    <div>
+    <label>Conversion Efficiency (%)</label>
+    <input type="number" id="eff" value="85">
+    </div>
+
+    <button onclick="calculate()">Calculate & Draw</button>
+</div>
+
+<div class="panel">
+    <h2>Calculated Outputs</h2>
+    <div id="errorMsg" class="error"></div>
+    <div class="output-row"><span>Element Passage Rate (per sec per core):</span> <span id="outFp" class="output-val">-</span></div>
+    <div class="output-row"><span>Distance Between Stations (km):</span> <span id="outStatDist" class="output-val">-</span></div>
+    <div class="output-row"><span>Distance Between Elements (km):</span> <span class="output-val"><span id="outMinDist" >-</span> - <span id="outMaxDist">-</span></span></div>
+
+    <div class="output-row"><span>Core Velocity:</span> <span class="output-val"><span id="outMinV">-</span> - <span id="outMaxV">-</span>
+    <select id="vUnit" onchange="updateVelocityDisplay()">
+        <option value="kms" selected>km/s</option>
+        <option value="ms">m/s</option>
+        <option value="kmh">km/h</option>
+    </select></span></div>
+    
+    <div class="output-row"><span>Sunny Station Power Req (Watts):</span> <span id="outPowerSun" class="output-val">-</span></div>
+    <div class="output-row"><span>Max Tether Tension (Newtons):</span> <span id="outTension" class="output-val">-</span></div>
+    <div class="output-row"><span>Lowest Core Altitude (Periapsis) (km):</span> <span id="outPeriapsis" class="output-val">-</span></div>
+
+    <canvas id="ringCanvas" width="400" height="400"></canvas>
+</div>
+
+<script>
+    const presets = {
+        earth: { mass: 5.972e24, radius: 6371, atmo: 100 },
+        moon: { mass: 7.342e22, radius: 1737, atmo: 0 },
+        mars: { mass: 6.39e23, radius: 3389, atmo: 11 },
+        venus: { mass: 4.867e24, radius: 6051, atmo: 250 },
+        jupiter: { mass: 1.898e27, radius: 69911, atmo: 1000 }
+    };
+
+    let calculatedData = { minV_ms: 0, maxV_ms: 0 };
+
+    function loadPreset() {
+        const val = document.getElementById("presetPlanet").value;
+        if (presets[val]) {
+            document.getElementById("pMass").value = presets[val].mass;
+            document.getElementById("pRadius").value = presets[val].radius;
+            document.getElementById("pAtmo").value = presets[val].atmo;
+        }
+    }
+
+    function calculate() {
+        // Inputs & Constants
+        const G = 6.67430e-11;
+        const M = parseFloat(document.getElementById("pMass").value);
+        const R_km = parseFloat(document.getElementById("pRadius").value);
+        const R = R_km * 1000;
+        const atmo = parseFloat(document.getElementById("pAtmo").value);
+        const N = parseInt(document.getElementById("nStations").value);
+        const h_km = parseFloat(document.getElementById("sAltitude").value);
+        const h = h_km * 1000;
+        const mStation = parseFloat(document.getElementById("mStation").value);
+        const mCoreEl = parseFloat(document.getElementById("mCore").value);
+        const nCoreElements = parseInt(document.getElementById("nCoreElements").value);
+        const pNight = parseFloat(document.getElementById("pNight").value);
+        const eff = parseFloat(document.getElementById("eff").value) / 100;
+
+        const errorMsg = document.getElementById("errorMsg");
+        errorMsg.style.display = "none";
+        
+        const rOrbit = R + h;
+        const mu = G * M;
+        const gAtmo = mu / (rOrbit * rOrbit);
+        const orbitalVelocity = Math.sqrt(mu / rOrbit);
+
+        // Core Physics Equations
+        const nightStations = Math.floor(N / 2);
+        
+        // F_req: Lift required from ONE core to support HALF a station's weight (since 2 cores support it)
+        const F_req = (mStation * gAtmo) / (4 * Math.tan(Math.PI / N));
+        
+        // P_req: Power required to be extracted from ONE core across the entire night side
+        const P_req = (nightStations * pNight) / (2 * eff); 
+        
+        // Geometric mass constant
+        const K_m = (mCoreEl * nCoreElements) / (Math.PI * rOrbit);
+
+        // Binary Search to solve for minimum viable v_min (where tension strictly equals 0 at min velocity)
+        let low = orbitalVelocity + 1e-4;
+        let high = 1e8; // High ceiling for search space (100,000 km/s)
+        let v_min = 0, v_max = 0, m_dot = 0;
+
+        for (let i = 0; i < 100; i++) {
+            v_min = (low + high) / 2;
+            
+            // Required mass flow to achieve necessary lift at v_min
+            m_dot = (F_req * v_min) / (v_min * v_min - orbitalVelocity * orbitalVelocity);
+            
+            // Consequent v_max after energy is added back on day side
+            v_max = Math.sqrt(v_min * v_min + (2 * P_req) / m_dot);
+            
+            // Mass flow geometrically available given the element count and velocities
+            let m_dot_geom = K_m * (v_min * v_max) / (v_min + v_max);
+            
+            // Converge
+            if (m_dot > m_dot_geom) {
+                low = v_min; // Velocity is too low, requires too much lift mass
+            } else {
+                high = v_min;
+            }
+        }
+
+        if (v_min > 3e8) {
+            errorMsg.innerHTML = `⚠️ <b>MASS DEFICIT ERROR:</b> Core mass is too low. Required velocity exceeds the speed of light! Increase Element Mass or Element Count.`;
+            errorMsg.style.display = "block";
+            return;
+        }
+
+        calculatedData.minV_ms = v_min;
+        calculatedData.maxV_ms = v_max;
+
+        // Elements Passage Rate & Spacing
+        const fp = m_dot / mCoreEl; // elements per second passing a station (per core)
+        const distStations = (2 * Math.PI * rOrbit) / N;
+        const d_min = v_min / fp; // Spacing at min velocity
+        const d_max = v_max / fp; // Spacing at max velocity
+
+        // Maximum Tension (Occurs at dawn/dusk where velocity is midway and lift is highest)
+        const v_mid = Math.sqrt((v_max * v_max + v_min * v_min) / 2);
+        const max_lift = 4 * m_dot * Math.tan(Math.PI / N) * (v_mid - (orbitalVelocity * orbitalVelocity) / v_mid);
+        let max_tension = max_lift - (mStation * gAtmo);
+        if (max_tension < 0) max_tension = 0;
+
+        // Power sunny side
+        const pSun = pNight / (eff * eff);
+
+        // Calculate Keplerian Periapsis
+        const vr = (v_min - (orbitalVelocity * orbitalVelocity) / v_min) * Math.tan(Math.PI / N);
+        const p_orb = rOrbit * rOrbit * (v_min * v_min - vr * vr) / mu;
+        const ecos = p_orb / rOrbit - 1;
+        const esin = vr * rOrbit * Math.sqrt(v_min * v_min - vr * vr) / mu;
+        const e = Math.sqrt(ecos * ecos + esin * esin);
+        const rp = p_orb / (1 + e);
+        const periapsis = (rp - R) / 1000;
+
+        if (periapsis < atmo) {
+            errorMsg.innerHTML = `⚠️ <b>ORBITAL COLLAPSE ERROR:</b> Core periapsis drops to ${periapsis.toFixed(2)} km, which enters the atmosphere (${atmo} km)! Increase Elements, Element Mass, or Station Altitude.`;
+            errorMsg.style.display = "block";
+        }
+
+        // Update UI
+        document.getElementById("outFp").innerText = fp.toLocaleString(undefined, {maximumFractionDigits: 2});
+        document.getElementById("outStatDist").innerText = (distStations / 1000).toLocaleString(undefined, {maximumFractionDigits: 2});
+        document.getElementById("outMinDist").innerText = (d_min / 1000).toLocaleString(undefined, {maximumFractionDigits: 4});
+        document.getElementById("outMaxDist").innerText = (d_max / 1000).toLocaleString(undefined, {maximumFractionDigits: 4});
+        
+        document.getElementById("outPowerSun").innerText = pSun.toExponential(3);
+        document.getElementById("outTension").innerText = max_tension.toExponential(3) + " (Min: 0.00)";
+        document.getElementById("outPeriapsis").innerText = periapsis.toFixed(2);
+
+        updateVelocityDisplay();
+        
+        // Pass scaled parameters to the diagram
+        drawDiagram(N, R_km, h_km, periapsis);
+    }
+
+    function updateVelocityDisplay() {
+        const unit = document.getElementById("vUnit").value;
+        let minV = calculatedData.minV_ms;
+        let maxV = calculatedData.maxV_ms;
+        let multiplier = 1;
+        if (unit === "kms") multiplier = 1 / 1000;
+        if (unit === "kmh") multiplier = 3.6;
+
+        document.getElementById("outMinV").innerText = (minV * multiplier).toLocaleString(undefined, {maximumFractionDigits: 2});
+        document.getElementById("outMaxV").innerText = (maxV * multiplier).toLocaleString(undefined, {maximumFractionDigits: 2});
+    }
+
+    function drawDiagram(numStations, pRadius, sAltitude, periapsis) {
+        const canvas = document.getElementById('ringCanvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const cx = width / 2;
+        const cy = height / 2;
+        
+        // SCALING LOGIC
+        const maxDrawRadius = 190; 
+        const totalOrbitRadius_km = pRadius + sAltitude;
+        const pixelsPerKm = maxDrawRadius / totalOrbitRadius_km;
+
+        const planetDisplayRadius = pRadius * pixelsPerKm;
+        const orbitDisplayRadius = totalOrbitRadius_km * pixelsPerKm;
+        
+        // Dip (delta between Station altitude and Periapsis) converted to pixels
+        const dip_km = sAltitude - periapsis; 
+        const max_dip_px = dip_km * pixelsPerKm;
+
+        ctx.clearRect(0, 0, width, height);
+
+        // Dynamically scale font size based on the planet size, capped for readability
+        const fontSize = Math.max(8, planetDisplayRadius * 0.25);
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Draw Planet (Night side)
+        ctx.beginPath();
+        ctx.arc(cx, cy, planetDisplayRadius, Math.PI / 2, Math.PI * 1.5, false);
+        ctx.fillStyle = '#111';
+        ctx.fill();
+        
+        // Night side label
+        ctx.fillStyle = '#05C';
+        ctx.fillText("NIGHT", cx - (planetDisplayRadius * 0.5), cy);
+
+        // Draw Planet (Day side)
+        ctx.beginPath();
+        ctx.arc(cx, cy, planetDisplayRadius, Math.PI * 1.5, Math.PI / 2, false);
+        ctx.fillStyle = '#4da6ff';
+        ctx.fill();
+        
+        // Day side label
+        ctx.fillStyle = '#920';
+        ctx.fillText("DAY", cx + (planetDisplayRadius * 0.5), cy);
+
+        // Planet Outline
+        ctx.beginPath();
+        ctx.arc(cx, cy, planetDisplayRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Draw Keplerian Deflection Scalloped Orbital Path (To Scale)
+        ctx.beginPath();
+        const angle_per_station = (2 * Math.PI) / numStations;
+        for(let i=0; i <= 360; i++) {
+            const rad = i * (Math.PI / 180);
+            const fraction = ((rad % angle_per_station) / angle_per_station); 
+            // Sine wave representation mapping the dip midway between stations
+            const dip = max_dip_px * Math.sin(fraction * Math.PI); 
+            const r = orbitDisplayRadius - dip; 
+            const x = cx + r * Math.cos(rad);
+            const y = cy + r * Math.sin(rad);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw Stations
+        const stationDotSize = Math.max(2, Math.min(6, 120 / numStations));
+        for (let i = 0; i < numStations; i++) {
+            const angle = (i * 2 * Math.PI) / numStations;
+            const x = cx + orbitDisplayRadius * Math.cos(angle);
+            const y = cy + orbitDisplayRadius * Math.sin(angle);
+            
+            ctx.beginPath();
+            ctx.arc(x, y, stationDotSize, 0, Math.PI * 2);
+            ctx.fillStyle = (x > cx) ? '#ffcc00' : '#444'; 
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+        }
+    }
+
+    // Initialize with default on load
+    window.onload = calculate;
+</script>
+
+</body>
+</html>
