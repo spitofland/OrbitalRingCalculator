@@ -348,7 +348,7 @@
         ctx.stroke();
 
         // Draw Stations
-        const stationDotSize = Math.max(2, Math.min(6, 120 / numStations));
+        const stationDotSize = Math.max(1, Math.min(6, 120 / numStations));
         for (let i = 0; i < numStations; i++) {
             const angle = (i * 2 * Math.PI) / numStations;
             const x = cx + orbitDisplayRadius * Math.cos(angle);
@@ -385,6 +385,22 @@
     <li>Space Voyage Ventures Blog - <a href="https://spacevoyageventures.com/orbital-rings/">Orbital Rings: Megastructures, Space Elevators, and the Future Potential</a></li>
 </ul>
 
+<h2>Using Momentum To Transmit Power</h2>
+
+<p>Most positions for an orbital ring have at least part of the ring in the planet's shadow. Since the stations need power to push against (and steer) the core elements and we usually assume the stations will use solar power, we need a way to get power to the stations in shadow.</p>
+
+<p>Some standard options for powering stations in shadow include: batteries, nuclear reactors, electrical transmission lines, and beamed power (microwave beams or similar). Batteries and reactors are probably not ideal due to weight and safety concerns, though they might be part of an emergency power system. Electrical transmission lines require physically connecting the stations and have large resistive losses over large distances, unless using superconductors. Beamed power is the most plausible of these options for orbital rings with gaps between stations, but the stations still need to be in line-of-sight with their neighbors in order to transmit power between them. It is also important to note that the power beam would travel a lower path than the core elements. This is more pronounced with fewer stations.</p>
+
+<p>One option for transmitting power from the day side to the night side without transmission lines is to use the core elements themselves to transmit the power. This essentially treats the core elements like flywheels that store the energy as momentum, which can then be converted to electricity by stations on the night side. This idea allows for power transmission without physical connections between stations, without a separate power beam, and even if the stations do not have line of sight to their neighbors.</p>
+
+<h2>Ways To Increase Momentum</h2>
+
+<p>One way to store energy in the core elements is to spin them like flywheels. As energy is added, the elements would spin faster. As energy is removed, they slow down. They could probably spin around any axis, but the path of travel seems the most stable. This results in the core elements spining like a bullet in flight.</p>
+
+<p>Unfortunately, spinning core elements would act like gyroscopes, which would make them more dificult to steer from one station to the next. Arranging the magnetic fields to manipulate the spin of the core elements independently of the path correction pushes would also be very complex.</p>
+
+<p>Another option is to store energy in the speed the core elements travel around the ring. Since the stations already need to be able to steer and push the core elements, they will be able to add more speed to the elements on the sunny side and then extract electricity on the night side by slowing the elements back down with the magnetic fields. This is still not very simple, but much more straightforward than spinning the individual cores.</p>
+
 <h2>Using Two Cores For Balance</h2>
 
 <p>An orbital ring has a spinning core, so it acts like a gyroscope. If we put an orbital ring anywhere but the equator, the tethers to the ground will need to pull hard on the stations to overcome the gyroscopic effects. For a demonstration and explanation of the strange behavior of gyroscopes, see this video: <a href="https://www.youtube.com/watch?v=XwBZx1cXEdM">Why Do Spinning Things Do This? - Smarter Every Day 312</a> (20:13).</p>
@@ -396,15 +412,7 @@
     <li>YouTube - <a href="https://www.youtube.com/watch?v=vGun5athdfg">Doublegyroscope-Precession-1080p.mov</a> (3:30) (no spoken words, just a piano soundtrack)</li>
 </ul>
 
-<p>For the proposed method of transmitting power by accelerating and decelerating the core elements, the two cores also allow each station to speed up or slow down the cores without pushing the station sideways along the ring. The energy given to (or taken from) each core element is the same for both cores. That means the station experiences some internal compression or tension, but remains stationary.</p>
-
-<h2>Using Momentum To Transmit Power</h2>
-
-<p></p>
-
-<h2>Downsides</h2>
-
-<p></p>
+<p>For the proposed method of transmitting power by accelerating and decelerating the core elements, the two cores also allow each station to speed up or slow down the cores without pushing the station sideways along the ring. The energy given to (or taken from) each core element is the same for both cores. That means the station experiences some internal compression or tension, but remains stationary as the forces exerted on each core balance out.</p>
 
 </body>
 </html>
