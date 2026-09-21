@@ -15,10 +15,11 @@
         h1, .panel h2 { margin-top: 0; }
         label { flex-grow: 1; display: block; margin-top: 0px; font-size: 0.9em; }
         input, select { width: 50%; padding: 8px; margin-top: 4px; box-sizing: border-box; background: #1e1e1e; color: #d0d0d0; border: 1px solid #555; border-radius: 4px; }
-        button { width: 100%; padding: 12px; margin-top: 20px; background: #4da6ff; color: #000; border: none; border-radius: 4px; font-size: 1em; cursor: pointer; font-weight: bold; }
+        button { width: 100%; padding: 12px; margin-top: 20px; background: #4da6ff; color: #000; border: none; border-radius: 4px; font-size: 1.2em; cursor: pointer; font-weight: bold; }
         button:hover { background: #3388dd; }
         a:link { color: #4da6ff; }
         a:visited { color: #a5a; }
+        .var-name { color: #8b2; font-weight: bold; }
         .output-row { display: flex; justify-content: space-between; margin-top: 10px; padding-bottom: 5px; border-bottom: 1px solid #444; font-size: 0.95em; }
         .output-val { font-weight: bold; color: #4da6ff; }
         .output-val select { width: auto; }
@@ -51,54 +52,54 @@
         </div>
 
         <div>
-        <label>Planet Mass (kg)</label>
+        <label>Planet Mass (kg) - <span class="var-name">m<sub>p</sub></span></label>
         <input type="number" id="pMass" value="5.972e24">
         </div>
 
         <div>
-        <label>Planet Radius (km)</label>
+        <label>Planet Radius (km) - <span class="var-name">r<sub>p</sub></span></label>
         <input type="number" id="pRadius" value="6371">
         </div>
 
         <div>
-        <label>Atmosphere Thickness (km)</label>
+        <label>Atmosphere Thickness (km) - <span class="var-name">r<sub>a</sub></span></label>
         <input type="number" id="pAtmo" value="100">
         </div>
 
         <hr />
 
         <div>
-        <label>Number of Stations</label>
+        <label>Number of Stations - <span class="var-name">N<sub>s</sub></span></label>
         <input type="number" id="nStations" value="12">
         </div>
 
         <div>
-        <label>Station Altitude (km)</label>
+        <label>Station Altitude (km) - <span class="var-name">h<sub>s</sub></span></label>
         <input type="number" id="sAltitude" value="400">
         </div>
 
         <div>
-        <label>Mass per Station (kg)</label>
+        <label>Mass per Station (kg) - <span class="var-name">m<sub>s</sub></span></label>
         <input type="number" id="mStation" value="5000000">
         </div>
 
         <div>
-        <label>Mass per Core Element (kg)</label>
+        <label>Mass per Core Element (kg) - <span class="var-name">m<sub>c</sub></span></label>
         <input type="number" id="mCore" value="10">
         </div>
 
         <div>
-        <label>Number of Elements (per Core)</label>
+        <label>Number of Elements (per Core) - <span class="var-name">N<sub>c</sub></span></label>
         <input type="number" id="nCoreElements" value="1000000">
         </div>
 
         <div>
-        <label>Night Station Power Req (Watts)</label>
+        <label>Night Station Power Req (Watts) - <span class="var-name">p<sub>s</sub></span></label>
         <input type="number" id="pNight" value="1000000000">
         </div>
 
         <div>
-        <label>Conversion Efficiency (%)</label>
+        <label>Conversion Efficiency (%) - <span class="var-name">e</span></label>
         <input type="number" id="eff" value="85">
         </div>
 
@@ -150,38 +151,38 @@
     function calculate() {
         // Inputs & Constants
         const G = 6.67430e-11;
-        const M = parseFloat(document.getElementById("pMass").value);
+        const mp = parseFloat(document.getElementById("pMass").value);
         const R_km = parseFloat(document.getElementById("pRadius").value);
-        const R = R_km * 1000;
-        const atmo = parseFloat(document.getElementById("pAtmo").value);
-        const N = parseInt(document.getElementById("nStations").value);
+        const rp = R_km * 1000;
+        const ra = parseFloat(document.getElementById("pAtmo").value);
+        const Ns = parseInt(document.getElementById("nStations").value);
         const h_km = parseFloat(document.getElementById("sAltitude").value);
-        const h = h_km * 1000;
-        const mStation = parseFloat(document.getElementById("mStation").value);
-        const mCoreEl = parseFloat(document.getElementById("mCore").value);
-        const nCoreElements = parseInt(document.getElementById("nCoreElements").value);
-        const pNight = parseFloat(document.getElementById("pNight").value);
-        const eff = parseFloat(document.getElementById("eff").value) / 100;
+        const hs = h_km * 1000;
+        const ms = parseFloat(document.getElementById("mStation").value);
+        const mc = parseFloat(document.getElementById("mCore").value);
+        const Nc = parseInt(document.getElementById("nCoreElements").value);
+        const ps = parseFloat(document.getElementById("pNight").value);
+        const e = parseFloat(document.getElementById("eff").value) / 100;
 
         const errorMsg = document.getElementById("errorMsg");
         errorMsg.style.display = "none";
         
-        const rOrbit = R + h;
-        const mu = G * M;
+        const rOrbit = rp + hs;
+        const mu = G * mp;
         const gAtmo = mu / (rOrbit * rOrbit);
         const orbitalVelocity = Math.sqrt(mu / rOrbit);
 
         // Core Physics Equations
-        const nightStations = Math.floor(N / 2);
+        const nightStations = Math.floor(Ns / 2);
         
         // F_req: Lift required from ONE core to support HALF a station's weight (since 2 cores support it)
-        const F_req = (mStation * gAtmo) / (4 * Math.tan(Math.PI / N));
+        const F_req = (ms * gAtmo) / (4 * Math.tan(Math.PI / Ns));
         
         // P_req: Power required to be extracted from ONE core across the entire night side
-        const P_req = (nightStations * pNight) / (2 * eff); 
+        const P_req = (nightStations * ps) / (2 * e);
         
         // Geometric mass constant
-        const K_m = (mCoreEl * nCoreElements) / (Math.PI * rOrbit);
+        const K_m = (mc * Nc) / (Math.PI * rOrbit);
 
         // Binary Search to solve for minimum viable v_min (where tension strictly equals 0 at min velocity)
         let low = orbitalVelocity + 1e-4;
@@ -218,31 +219,31 @@
         calculatedData.maxV_ms = v_max;
 
         // Elements Passage Rate & Spacing
-        const fp = m_dot / mCoreEl; // elements per second passing a station (per core)
-        const distStations = (2 * Math.PI * rOrbit) / N;
+        const fp = m_dot / mc; // elements per second passing a station (per core)
+        const distStations = (2 * Math.PI * rOrbit) / Ns;
         const d_min = v_min / fp; // Spacing at min velocity
         const d_max = v_max / fp; // Spacing at max velocity
 
         // Maximum Tension (Occurs at dawn/dusk where velocity is midway and lift is highest)
         const v_mid = Math.sqrt((v_max * v_max + v_min * v_min) / 2);
-        const max_lift = 4 * m_dot * Math.tan(Math.PI / N) * (v_mid - (orbitalVelocity * orbitalVelocity) / v_mid);
-        let max_tension = max_lift - (mStation * gAtmo);
+        const max_lift = 4 * m_dot * Math.tan(Math.PI / Ns) * (v_mid - (orbitalVelocity * orbitalVelocity) / v_mid);
+        let max_tension = max_lift - (ms * gAtmo);
         if (max_tension < 0) max_tension = 0;
 
         // Power sunny side
-        const pSun = pNight / (eff * eff);
+        const pSun = ps / (e * e);
 
         // Calculate Keplerian Periapsis
-        const vr = (v_min - (orbitalVelocity * orbitalVelocity) / v_min) * Math.tan(Math.PI / N);
+        const vr = (v_min - (orbitalVelocity * orbitalVelocity) / v_min) * Math.tan(Math.PI / Ns);
         const p_orb = rOrbit * rOrbit * (v_min * v_min - vr * vr) / mu;
         const ecos = p_orb / rOrbit - 1;
         const esin = vr * rOrbit * Math.sqrt(v_min * v_min - vr * vr) / mu;
-        const e = Math.sqrt(ecos * ecos + esin * esin);
-        const rp = p_orb / (1 + e);
-        const periapsis = (rp - R) / 1000;
+        const eccentricity = Math.sqrt(ecos * ecos + esin * esin);
+        const r_p = p_orb / (1 + eccentricity);
+        const periapsis = (r_p - rp) / 1000;
 
-        if (periapsis < atmo) {
-            errorMsg.innerHTML = `⚠️ <b>ORBITAL COLLAPSE ERROR:</b> Core periapsis drops to ${periapsis.toFixed(2)} km, which enters the atmosphere (${atmo} km)! Increase Elements, Element Mass, or Station Altitude.`;
+        if (periapsis < ra) {
+            errorMsg.innerHTML = `⚠️ <b>ORBITAL COLLAPSE ERROR:</b> Core periapsis drops to ${periapsis.toFixed(2)} km, which enters the atmosphere (${ra} km)! Increase Elements, Element Mass, or Station Altitude.`;
             errorMsg.style.display = "block";
         }
 
@@ -259,7 +260,7 @@
         updateVelocityDisplay();
         
         // Pass scaled parameters to the diagram
-        drawDiagram(N, R_km, h_km, periapsis);
+        drawDiagram(Ns, R_km, h_km, periapsis);
     }
 
     function updateVelocityDisplay() {
