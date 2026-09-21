@@ -53,54 +53,54 @@
 
         <div>
         <label>Planet Mass (kg) - <span class="var-name">m<sub>p</sub></span></label>
-        <input type="number" id="pMass" value="5.972e24">
+        <input type="number" id="pMass" value="5.972e24" onchange="setPresetCustom(this.value)" min="10000">
         </div>
 
         <div>
         <label>Planet Radius (km) - <span class="var-name">r<sub>p</sub></span></label>
-        <input type="number" id="pRadius" value="6371">
+        <input type="number" id="pRadius" value="6371" onchange="setPresetCustom(this.value)" min="1">
         </div>
 
         <div>
         <label>Atmosphere Thickness (km) - <span class="var-name">r<sub>a</sub></span></label>
-        <input type="number" id="pAtmo" value="100">
+        <input type="number" id="pAtmo" value="100" onchange="setPresetCustom(this.value)" min="0">
         </div>
 
         <hr />
 
         <div>
         <label>Number of Stations - <span class="var-name">N<sub>s</sub></span></label>
-        <input type="number" id="nStations" value="12">
+        <input type="number" id="nStations" value="12" min="2">
         </div>
 
         <div>
         <label>Station Altitude (km) - <span class="var-name">h<sub>s</sub></span></label>
-        <input type="number" id="sAltitude" value="400">
+        <input type="number" id="sAltitude" value="400" min="1">
         </div>
 
         <div>
         <label>Mass per Station (kg) - <span class="var-name">m<sub>s</sub></span></label>
-        <input type="number" id="mStation" value="5000000">
+        <input type="number" id="mStation" value="5000000" min="1">
         </div>
 
         <div>
         <label>Mass per Core Element (kg) - <span class="var-name">m<sub>c</sub></span></label>
-        <input type="number" id="mCore" value="10">
+        <input type="number" id="mCore" value="10" min="1">
         </div>
 
         <div>
         <label>Number of Elements (per Core) - <span class="var-name">N<sub>c</sub></span></label>
-        <input type="number" id="nCoreElements" value="1000000">
+        <input type="number" id="nCoreElements" value="1000000" min="100">
         </div>
 
         <div>
         <label>Night Station Power Req (Watts) - <span class="var-name">p<sub>s</sub></span></label>
-        <input type="number" id="pNight" value="1000000000">
+        <input type="number" id="pNight" value="1000000000" min="0">
         </div>
 
         <div>
         <label>Conversion Efficiency (%) - <span class="var-name">e</span></label>
-        <input type="number" id="eff" value="85">
+        <input type="number" id="eff" value="85" min="1" max="100">
         </div>
 
         <button onclick="calculate()">Calculate & Draw</button>
@@ -119,7 +119,7 @@
             <option value="ms">m/s</option>
             <option value="kmh">km/h</option>
         </select></span></div>
-        
+
         <div class="output-row"><span>Sunny Station Power Req (Watts):</span> <span id="outPowerSun" class="output-val">-</span></div>
         <div class="output-row"><span>Max Tether Tension (Newtons):</span> <span id="outTension" class="output-val">-</span></div>
         <div class="output-row"><span>Lowest Core Altitude (Periapsis) (km):</span> <span id="outPeriapsis" class="output-val">-</span></div>
@@ -148,6 +148,10 @@
         }
     }
 
+    function setPresetCustom(newValue) {
+        document.getElementById("presetPlanet").value = "custom"
+    }
+
     function calculate() {
         // Inputs & Constants
         const G = 6.67430e-11;
@@ -166,7 +170,7 @@
 
         const errorMsg = document.getElementById("errorMsg");
         errorMsg.style.display = "none";
-        
+
         const rOrbit = rp + hs;
         const mu = G * mp;
         const gAtmo = mu / (rOrbit * rOrbit);
@@ -174,13 +178,13 @@
 
         // Core Physics Equations
         const nightStations = Math.floor(Ns / 2);
-        
+
         // F_req: Lift required from ONE core to support HALF a station's weight (since 2 cores support it)
         const F_req = (ms * gAtmo) / (4 * Math.tan(Math.PI / Ns));
-        
+
         // P_req: Power required to be extracted from ONE core across the entire night side
         const P_req = (nightStations * ps) / (2 * e);
-        
+
         // Geometric mass constant
         const K_m = (mc * Nc) / (Math.PI * rOrbit);
 
@@ -191,16 +195,16 @@
 
         for (let i = 0; i < 100; i++) {
             v_min = (low + high) / 2;
-            
+
             // Required mass flow to achieve necessary lift at v_min
             m_dot = (F_req * v_min) / (v_min * v_min - orbitalVelocity * orbitalVelocity);
-            
+
             // Consequent v_max after energy is added back on day side
             v_max = Math.sqrt(v_min * v_min + (2 * P_req) / m_dot);
-            
+
             // Mass flow geometrically available given the element count and velocities
             let m_dot_geom = K_m * (v_min * v_max) / (v_min + v_max);
-            
+
             // Converge
             if (m_dot > m_dot_geom) {
                 low = v_min; // Velocity is too low, requires too much lift mass
@@ -252,13 +256,13 @@
         document.getElementById("outStatDist").innerText = (distStations / 1000).toLocaleString(undefined, {maximumFractionDigits: 2});
         document.getElementById("outMinDist").innerText = (d_min / 1000).toLocaleString(undefined, {maximumFractionDigits: 4});
         document.getElementById("outMaxDist").innerText = (d_max / 1000).toLocaleString(undefined, {maximumFractionDigits: 4});
-        
+
         document.getElementById("outPowerSun").innerText = pSun.toExponential(3);
         document.getElementById("outTension").innerText = max_tension.toExponential(3) + " (Min: 0.00)";
         document.getElementById("outPeriapsis").innerText = periapsis.toFixed(2);
 
         updateVelocityDisplay();
-        
+
         // Pass scaled parameters to the diagram
         drawDiagram(Ns, R_km, h_km, periapsis);
     }
@@ -282,17 +286,17 @@
         const height = canvas.height;
         const cx = width / 2;
         const cy = height / 2;
-        
+
         // SCALING LOGIC
-        const maxDrawRadius = 190; 
+        const maxDrawRadius = 190;
         const totalOrbitRadius_km = pRadius + sAltitude;
         const pixelsPerKm = maxDrawRadius / totalOrbitRadius_km;
 
         const planetDisplayRadius = pRadius * pixelsPerKm;
         const orbitDisplayRadius = totalOrbitRadius_km * pixelsPerKm;
-        
+
         // Dip (delta between Station altitude and Periapsis) converted to pixels
-        const dip_km = sAltitude - periapsis; 
+        const dip_km = sAltitude - periapsis;
         const max_dip_px = dip_km * pixelsPerKm;
 
         ctx.clearRect(0, 0, width, height);
@@ -308,7 +312,7 @@
         ctx.arc(cx, cy, planetDisplayRadius, Math.PI / 2, Math.PI * 1.5, false);
         ctx.fillStyle = '#111';
         ctx.fill();
-        
+
         // Night side label
         ctx.fillStyle = '#05C';
         ctx.fillText("NIGHT", cx - (planetDisplayRadius * 0.5), cy);
@@ -318,7 +322,7 @@
         ctx.arc(cx, cy, planetDisplayRadius, Math.PI * 1.5, Math.PI / 2, false);
         ctx.fillStyle = '#4da6ff';
         ctx.fill();
-        
+
         // Day side label
         ctx.fillStyle = '#920';
         ctx.fillText("DAY", cx + (planetDisplayRadius * 0.5), cy);
@@ -335,10 +339,10 @@
         const angle_per_station = (2 * Math.PI) / numStations;
         for(let i=0; i <= 360; i++) {
             const rad = i * (Math.PI / 180);
-            const fraction = ((rad % angle_per_station) / angle_per_station); 
+            const fraction = ((rad % angle_per_station) / angle_per_station);
             // Sine wave representation mapping the dip midway between stations
-            const dip = max_dip_px * Math.sin(fraction * Math.PI); 
-            const r = orbitDisplayRadius - dip; 
+            const dip = max_dip_px * Math.sin(fraction * Math.PI);
+            const r = orbitDisplayRadius - dip;
             const x = cx + r * Math.cos(rad);
             const y = cy + r * Math.sin(rad);
             if (i === 0) ctx.moveTo(x, y);
@@ -354,10 +358,10 @@
             const angle = (i * 2 * Math.PI) / numStations;
             const x = cx + orbitDisplayRadius * Math.cos(angle);
             const y = cy + orbitDisplayRadius * Math.sin(angle);
-            
+
             ctx.beginPath();
             ctx.arc(x, y, stationDotSize, 0, Math.PI * 2);
-            ctx.fillStyle = (x > cx) ? '#ffcc00' : '#444'; 
+            ctx.fillStyle = (x > cx) ? '#ffcc00' : '#444';
             ctx.fill();
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 0.5;
