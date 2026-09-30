@@ -152,119 +152,221 @@
         document.getElementById("presetPlanet").value = "custom"
     }
 
+    /**
+     * Updated Orbital Ring Calculation Script
+     *
+     * References & Technical Specifications:
+     * 1. Orbital Ring Mechanics & Discrete Momentum Transfer (Birch, 1982):
+     *    Paul Birch, "Orbital Rings I-III", Journal of the British Interplanetary Society, 1982.
+     *    https://www.paulbirch.org.uk/orbital-rings.html
+     *    https://en.wikipedia.org/wiki/Orbital_ring
+     *
+     * 2. Standard Gravitational Parameter & Planetary Orbital Speed:
+     *    https://en.wikipedia.org/wiki/Standard_gravitational_parameter
+     *    https://en.wikipedia.org/wiki/Orbital_speed
+     *
+     * 3. Discrete Impulse & Force Mechanics (F = dp/dt):
+     *    https://en.wikipedia.org/wiki/Impulse_(physics)
+     *
+     * 4. Keplerian Elliptic Geometry & Periapsis Altitude:
+     *    https://en.wikipedia.org/wiki/Kepler_orbit
+     *
+     * 5. Kinetic Energy & Core Power Balance:
+     *    https://en.wikipedia.org/wiki/Kinetic_energy
+     */
+
     function calculate() {
-        // Inputs & Constants
+        // Standard Gravitational Constant (m^3 kg^-1 s^-2)
+        // Ref: https://en.wikipedia.org/wiki/Gravitational_constant
         const G = 6.67430e-11;
-        const mp = parseFloat(document.getElementById("pMass").value);
-        const R_km = parseFloat(document.getElementById("pRadius").value);
-        const rp = R_km * 1000;
-        const ra = parseFloat(document.getElementById("pAtmo").value);
-        const Ns = parseInt(document.getElementById("nStations").value);
-        const h_km = parseFloat(document.getElementById("sAltitude").value);
-        const hs = h_km * 1000;
-        const ms = parseFloat(document.getElementById("mStation").value);
-        const mc = parseFloat(document.getElementById("mCore").value);
-        const Nc = parseInt(document.getElementById("nCoreElements").value);
-        const ps = parseFloat(document.getElementById("pNight").value);
-        const e = parseFloat(document.getElementById("eff").value) / 100;
 
-        const errorMsg = document.getElementById("errorMsg");
-        errorMsg.style.display = "none";
+        // --- Inputs Parsing ---
+        const mp = parseFloat(document.getElementById('pMass').value);       // Planet Mass (kg)
+        const R_km = parseFloat(document.getElementById('pRadius').value);     // Planet Radius (km)
+        const ra_km = parseFloat(document.getElementById('pAtmo').value);   // Atmosphere Thickness (km)
+        const Ns = parseInt(document.getElementById('nStations').value);        // Number of Stations
+        const hs_km = parseFloat(document.getElementById('sAltitude').value);    // Station Altitude (km)
+        const ms = parseFloat(document.getElementById('mStation').value);       // Mass per Station (kg)
+        const mc = parseFloat(document.getElementById('mCore').value);       // Mass per Core Element (kg)
+        const Nc = parseInt(document.getElementById('nCoreElements').value);        // Number of Elements per Core
+        const ps = parseFloat(document.getElementById('pNight').value);       // Night Station Power Demand (Watts)
+        const effPercent = parseFloat(document.getElementById('eff').value); // Energy Conversion Efficiency (%)
 
-        const rOrbit = rp + hs;
-        const mu = G * mp;
-        const gAtmo = mu / (rOrbit * rOrbit);
-        const orbitalVelocity = Math.sqrt(mu / rOrbit);
+        // --- Fundamental Geometry & Gravitational Parameters ---
+        // Ref: https://en.wikipedia.org/wiki/Standard_gravitational_parameter
+        const rp = R_km * 1000.0;                 // Planet Radius (m)
+        const ra = ra_km * 1000.0;                 // Atmosphere Height (m)
+        const hs = hs_km * 1000.0;                 // Station Altitude (m)
+        const r_s = rp + hs;                       // Station Orbital Radius (m)
+        const mu = G * mp;                         // Gravitational Parameter \mu = G * m_p (m^3/s^2)
+        const gs = mu / (r_s * r_s);               // Local Gravity at Station Altitude (m/s^2)
+        const v_circ = Math.sqrt(mu / r_s);        // Circular Orbital Speed at Station Altitude (m/s)
 
-        // Core Physics Equations
-        const nightStations = Math.floor(Ns / 2);
+        // Station Geometry (Half-Angle & Chord Distance)
+        // Ref: https://en.wikipedia.org/wiki/Chord_(geometry)
+        const theta_s = Math.PI / Ns;              // Half-angle between adjacent stations (rad)
+        const d_s = 2.0 * r_s * Math.sin(theta_s);  // Straight-line chord distance between stations (m)
+        const r_p_min = rp + ra;                   // Atmosphere clearance boundary (m)
 
-        // F_req: Lift required from ONE core to support HALF a station's weight (since 2 cores support it)
-        const F_req = (ms * gAtmo) / (4 * Math.tan(Math.PI / Ns));
+        // --- Dual-Core Day/Night Power Balance ---
+        // Ref: https://en.wikipedia.org/wiki/Energy_conversion_efficiency
+        const e_conv = effPercent / 100.0;
+        const N_night = Math.floor(Ns / 2);
+        const N_day = Ns - N_night;
 
-        // P_req: Power required to be extracted from ONE core across the entire night side
-        const P_req = (nightStations * ps) / (2 * e);
+        // Day station input power accounting for two-stage conversion losses (solar -> kinetic -> electric)
+        const P_sun = ps / (e_conv * e_conv);      // Sunny Station Power (Watts)
 
-        // Geometric mass constant
-        const K_m = (mc * Nc) / (Math.PI * rOrbit);
+        // --- Iterative Solver for Baseline Core Speed & Discrete Lift Balance ---
+        // Ref: https://www.paulbirch.org.uk/orbital-rings.html (Section 3: Rotor Dynamics)
+        let low_v = v_circ;
+        let high_v = 100000.0; // Upper limit search bound (m/s)
+        let v_bar = low_v;
 
-        // Binary Search to solve for minimum viable v_min (where tension strictly equals 0 at min velocity)
-        let low = orbitalVelocity + 1e-4;
-        let high = 1e8; // High ceiling for search space (100,000 km/s)
-        let v_min = 0, v_max = 0, m_dot = 0;
+        // Evaluates core state, element passage rate, discrete impulse lift, and lowest periapsis altitude
+        function evaluateSystem(v_base) {
+            // Element passage frequency per core (Hz)
+            // Ref: https://en.wikipedia.org/wiki/Frequency
+            const fp = (Nc * v_base) / (2.0 * Math.PI * r_s);
+            if (fp <= 0) return null;
 
-        for (let i = 0; i < 100; i++) {
-            v_min = (low + high) / 2;
+            // Energy step per station pass per element (Joules)
+            // Two counter-rotating cores share the total power extraction/addition equally
+            // Ref: https://en.wikipedia.org/wiki/Kinetic_energy
+            const dE_night = ps / (2.0 * fp);
+            const dE_day = (N_night / N_day) * (ps / (2.0 * e_conv * e_conv * fp));
 
-            // Required mass flow to achieve necessary lift at v_min
-            m_dot = (F_req * v_min) / (v_min * v_min - orbitalVelocity * orbitalVelocity);
-
-            // Consequent v_max after energy is added back on day side
-            v_max = Math.sqrt(v_min * v_min + (2 * P_req) / m_dot);
-
-            // Mass flow geometrically available given the element count and velocities
-            let m_dot_geom = K_m * (v_min * v_max) / (v_min + v_max);
-
-            // Converge
-            if (m_dot > m_dot_geom) {
-                low = v_min; // Velocity is too low, requires too much lift mass
-            } else {
-                high = v_min;
+            // Station energy accumulation offsets along the ring circuit
+            const energy_offsets = new Array(Ns).fill(0);
+            let curr_e = 0.0;
+            for (let k = 0; k < Ns; k++) {
+                energy_offsets[k] = curr_e;
+                if (k < N_day) {
+                    curr_e += dE_day;
+                } else {
+                    curr_e -= dE_night;
+                }
             }
+
+            // Determine Core 1 minimum velocity at Dawn (station 0) such that mean speed matches v_base
+            let low_vmin = 1.0;
+            let high_vmin = v_base;
+            let v_min = low_vmin;
+
+            for (let iter = 0; iter < 40; iter++) {
+                let mid_vmin = (low_vmin + high_vmin) / 2.0;
+                let sum_v = 0.0;
+                for (let k = 0; k < Ns; k++) {
+                    let v_sq = mid_vmin * mid_vmin + (2.0 * energy_offsets[k]) / mc;
+                    sum_v += (v_sq > 0) ? Math.sqrt(v_sq) : 0;
+                }
+                if (sum_v / Ns < v_base) {
+                    low_vmin = mid_vmin;
+                } else {
+                    high_vmin = mid_vmin;
+                    v_min = mid_vmin;
+                }
+            }
+
+            // Velocity profiles for counter-rotating cores
+            // Core 1 moves forward; Core 2 moves in reverse (asymmetric speed profile at non-terminator stations)
+            const v1 = new Array(Ns);
+            for (let k = 0; k < Ns; k++) {
+                v1[k] = Math.sqrt(v_min * v_min + (2.0 * energy_offsets[k]) / mc);
+            }
+
+            const v2 = new Array(Ns);
+            for (let k = 0; k < Ns; k++) {
+                v2[k] = v1[(Ns - k) % Ns];
+            }
+
+            // Discrete Station Lift & Periapsis Evaluation
+            // Ref: https://en.wikipedia.org/wiki/Impulse_(physics)
+            // Discrete Impulse J_req = F_weight * dt = (m_s * g_s) / f_p
+            // J_provided = 2 * m_c * (v_r1 + v_r2)
+            let min_periapsis = Infinity;
+            let min_tension = Infinity;
+            let max_tension = -Infinity;
+
+            for (let k = 0; k < Ns; k++) {
+                const F_weight = ms * gs;
+                const vr_total_req = F_weight / (2.0 * mc * fp);
+
+                // Distribute radial deflection velocity proportional to core speed at station k
+                const vr1 = vr_total_req * (v1[k] / (v1[k] + v2[k]));
+                const vr2 = vr_total_req * (v2[k] / (v1[k] + v2[k]));
+
+                // Keplerian orbital eccentricity e for free-flight arc between stations
+                // Ref: https://en.wikipedia.org/wiki/Kepler_orbit
+                // e = (r_s * v_\theta * v_r) / (\mu * sin(\theta_s))
+                const e1 = (r_s * v1[k] * vr1) / (mu * Math.sin(theta_s));
+                const e2 = (r_s * v2[k] * vr2) / (mu * Math.sin(theta_s));
+
+                // Periapsis radius of the free-flight Keplerian arc between deflectors
+                // r_p = r_s * (1 + e * cos(\theta_s)) / (1 + e)
+                const rp1 = r_s * (1.0 + e1 * Math.cos(theta_s)) / (1.0 + e1);
+                const rp2 = r_s * (1.0 + e2 * Math.cos(theta_s)) / (1.0 + e2);
+
+                min_periapsis = Math.min(min_periapsis, rp1, rp2);
+
+                // Net Tether Tension Calculation
+                // F_lift = 2 * m_c * (v_r1 + v_r2) * f_p
+                // Tension = F_lift - m_s * g_s (Must be >= 0)
+                const f_lift_k = 2.0 * mc * (vr1 + vr2) * fp;
+                const tension_k = f_lift_k - F_weight;
+
+                min_tension = Math.min(min_tension, tension_k);
+                max_tension = Math.max(max_tension, tension_k);
+            }
+
+            return {
+                fp: fp,
+                v_min: Math.min(...v1),
+                v_max: Math.max(...v1),
+                min_periapsis: min_periapsis,
+                min_peri_alt_km: (min_periapsis - rp) / 1000.0,
+                min_tension: min_tension,
+                max_tension: max_tension
+            };
         }
 
-        if (v_min > 3e8) {
-            errorMsg.innerHTML = `⚠️ <b>MASS DEFICIT ERROR:</b> Core mass is too low. Required velocity exceeds the speed of light! Increase Element Mass or Element Count.`;
-            errorMsg.style.display = "block";
-            return;
+        // Solve for baseline speed v_bar ensuring periapsis stays outside atmosphere
+        let result = evaluateSystem(v_bar);
+        if (result.min_periapsis < r_p_min) {
+            for (let iter = 0; iter < 40; iter++) {
+                let mid_v = (low_v + high_v) / 2.0;
+                let res = evaluateSystem(mid_v);
+                if (res && res.min_periapsis >= r_p_min) {
+                    high_v = mid_v;
+                    v_bar = mid_v;
+                } else {
+                    low_v = mid_v;
+                }
+            }
+            result = evaluateSystem(v_bar);
         }
 
-        calculatedData.minV_ms = v_min;
-        calculatedData.maxV_ms = v_max;
+        // Core element spacing d = v / f_p (meters)
+        const d_elem_min = result.v_min / result.fp;
+        const d_elem_max = result.v_max / result.fp;
 
-        // Elements Passage Rate & Spacing
-        const fp = m_dot / mc; // elements per second passing a station (per core)
-        const distStations = (2 * Math.PI * rOrbit) / Ns;
-        const d_min = v_min / fp; // Spacing at min velocity
-        const d_max = v_max / fp; // Spacing at max velocity
-
-        // Maximum Tension (Occurs at dawn/dusk where velocity is midway and lift is highest)
-        const v_mid = Math.sqrt((v_max * v_max + v_min * v_min) / 2);
-        const max_lift = 4 * m_dot * Math.tan(Math.PI / Ns) * (v_mid - (orbitalVelocity * orbitalVelocity) / v_mid);
-        let max_tension = max_lift - (ms * gAtmo);
-        if (max_tension < 0) max_tension = 0;
-
-        // Power sunny side
-        const pSun = ps / (e * e);
-
-        // Calculate Keplerian Periapsis
-        const vr = (v_min - (orbitalVelocity * orbitalVelocity) / v_min) * Math.tan(Math.PI / Ns);
-        const p_orb = rOrbit * rOrbit * (v_min * v_min - vr * vr) / mu;
-        const ecos = p_orb / rOrbit - 1;
-        const esin = vr * rOrbit * Math.sqrt(v_min * v_min - vr * vr) / mu;
-        const eccentricity = Math.sqrt(ecos * ecos + esin * esin);
-        const r_p = p_orb / (1 + eccentricity);
-        const periapsis = (r_p - rp) / 1000;
-
-        if (periapsis < ra) {
-            errorMsg.innerHTML = `⚠️ <b>ORBITAL COLLAPSE ERROR:</b> Core periapsis drops to ${periapsis.toFixed(2)} km, which enters the atmosphere (${ra} km)! Increase Elements, Element Mass, or Station Altitude.`;
-            errorMsg.style.display = "block";
-        }
+        // Core velocity range (km/s)
+        calculatedData = { minV_ms: result.v_min, maxV_ms: result.v_max };
 
         // Update UI
-        document.getElementById("outFp").innerText = fp.toLocaleString(undefined, {maximumFractionDigits: 2});
-        document.getElementById("outStatDist").innerText = (distStations / 1000).toLocaleString(undefined, {maximumFractionDigits: 2});
-        document.getElementById("outMinDist").innerText = (d_min / 1000).toLocaleString(undefined, {maximumFractionDigits: 4});
-        document.getElementById("outMaxDist").innerText = (d_max / 1000).toLocaleString(undefined, {maximumFractionDigits: 4});
+        document.getElementById("outFp").innerText = result.fp.toLocaleString(undefined, {maximumFractionDigits: 3});
+        document.getElementById("outStatDist").innerText = (d_s / 1000).toLocaleString(undefined, {maximumFractionDigits: 3});
+        document.getElementById("outMinDist").innerText = (d_elem_min / 1000).toLocaleString(undefined, {maximumFractionDigits: 3});
+        document.getElementById("outMaxDist").innerText = (d_elem_max / 1000).toLocaleString(undefined, {maximumFractionDigits: 3});
 
-        document.getElementById("outPowerSun").innerText = pSun.toExponential(3);
-        document.getElementById("outTension").innerText = max_tension.toExponential(3) + " (Min: 0.00)";
-        document.getElementById("outPeriapsis").innerText = periapsis.toFixed(2);
+        document.getElementById("outPowerSun").innerText = P_sun.toExponential(3);
+        document.getElementById("outTension").innerText = result.max_tension.toExponential(3) + " (Min: " + result.min_tension.toExponential(3) + ")";
+        document.getElementById("outPeriapsis").innerText = result.min_peri_alt_km.toLocaleString(undefined, {maximumFractionDigits: 3});
 
         updateVelocityDisplay();
 
         // Pass scaled parameters to the diagram
-        drawDiagram(Ns, R_km, h_km, periapsis);
+        drawDiagram(Ns, R_km, ra_km, hs_km, result.min_periapsis / 1000.0);
     }
 
     function updateVelocityDisplay() {
@@ -279,7 +381,7 @@
         document.getElementById("outMaxV").innerText = (maxV * multiplier).toLocaleString(undefined, {maximumFractionDigits: 2});
     }
 
-    function drawDiagram(numStations, pRadius, sAltitude, periapsis) {
+    function drawDiagram(numStations, pRadius, atmoAltitude, sAltitude, min_periapsis) {
         const canvas = document.getElementById('ringCanvas');
         const ctx = canvas.getContext('2d');
         const width = canvas.width;
@@ -296,7 +398,7 @@
         const orbitDisplayRadius = totalOrbitRadius_km * pixelsPerKm;
 
         // Dip (delta between Station altitude and Periapsis) converted to pixels
-        const dip_km = sAltitude - periapsis;
+        const dip_km = sAltitude - min_periapsis;
         const max_dip_px = dip_km * pixelsPerKm;
 
         ctx.clearRect(0, 0, width, height);
@@ -306,6 +408,16 @@
         ctx.font = `bold ${fontSize}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+
+        // Draw Atmosphere
+        if (atmoAltitude > 0) {
+            const atmosphereDisplayRadius = (pRadius + atmoAltitude) * pixelsPerKm;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, atmosphereDisplayRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#4da6ff';
+            ctx.fill();
+        }
 
         // Draw Planet (Night side)
         ctx.beginPath();
@@ -320,37 +432,59 @@
         // Draw Planet (Day side)
         ctx.beginPath();
         ctx.arc(cx, cy, planetDisplayRadius, Math.PI * 1.5, Math.PI / 2, false);
-        ctx.fillStyle = '#4da6ff';
+        ctx.fillStyle = '#973';
         ctx.fill();
 
         // Day side label
-        ctx.fillStyle = '#920';
+        ctx.fillStyle = '#420';
         ctx.fillText("DAY", cx + (planetDisplayRadius * 0.5), cy);
 
         // Planet Outline
-        ctx.beginPath();
-        ctx.arc(cx, cy, planetDisplayRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // Draw Keplerian Deflection Scalloped Orbital Path (To Scale)
-        ctx.beginPath();
-        const angle_per_station = (2 * Math.PI) / numStations;
-        for(let i=0; i <= 360; i++) {
-            const rad = i * (Math.PI / 180);
-            const fraction = ((rad % angle_per_station) / angle_per_station);
-            // Sine wave representation mapping the dip midway between stations
-            const dip = max_dip_px * Math.sin(fraction * Math.PI);
-            const r = orbitDisplayRadius - dip;
-            const x = cx + r * Math.cos(rad);
-            const y = cy + r * Math.sin(rad);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+        if (atmoAltitude <= 0) {
+            ctx.beginPath();
+            ctx.arc(cx, cy, planetDisplayRadius, 0, Math.PI * 2);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
         }
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+
+        // Draw Keplerian Deflection Orbital Paths (To Scale)
+        const r_s = orbitDisplayRadius;
+        const r_p_min = min_periapsis * pixelsPerKm;
+        const theta_s = Math.PI / numStations;
+        const angle_per_station = (2 * Math.PI) / numStations;
+
+        function drawKeplerianPath(r_p, strokeStyle) {
+            ctx.beginPath();
+            const stepsPerStation = 16;
+            for (let i = 0; i < numStations; i++) {
+                // Midpoint angle between station i and i+1 (location of periapsis theta = 0)
+                const phi_mid = (i + 0.5) * angle_per_station;
+
+                for (let s = 0; s <= stepsPerStation; s++) {
+                    // True anomaly theta relative to periapsis ranges from -theta_s to +theta_s
+                    const theta = -theta_s + (s / stepsPerStation) * (2 * theta_s);
+                    const phi = phi_mid + theta;
+
+                    // Exact Keplerian orbit formula: r(theta)
+                    const num = r_p * r_s * (1.0 - Math.cos(theta_s));
+                    const den = r_p * (1.0 - Math.cos(theta)) + r_s * (Math.cos(theta) - Math.cos(theta_s));
+                    const r = num / den;
+
+                    const x = cx + r * Math.cos(phi);
+                    const y = cy + r * Math.sin(phi);
+
+                    if (i === 0 && s === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+            }
+            ctx.strokeStyle = strokeStyle;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Draw path for minimum periapsis trajectory
+        drawKeplerianPath(r_p_min, 'rgba(255, 255, 255, 0.5)');
 
         // Draw Stations
         const stationDotSize = Math.max(1, Math.min(6, 120 / numStations));
